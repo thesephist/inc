@@ -31,6 +31,7 @@ serJSON := json.ser
 deJSON := json.de
 
 Gray := ansi.Gray
+Yellow := ansi.Yellow
 
 Tab := char(9)
 Newline := char(10)
@@ -213,7 +214,7 @@ newDB := (initialDB, saveFilePath) => (
 
 		S.choices := matchedNotes
 		noteLines := map(matchedNotes, (note, i) => f('{{ 0 }} | {{ 1 }} {{ 2 }}', [
-			i
+			Yellow(string(i))
 			note.content
 			Gray(formatTime(note.updated))
 		]))
@@ -233,7 +234,7 @@ newDB := (initialDB, saveFilePath) => (
 
 	getHistoryAction := cb => (
 		historyLines := map(S.db.events, (cmd, i) => f('{{ 0 }} | {{ 1 }} {{ 2 }}', [
-			i
+			Yellow(string(i))
 			formatCommand(cmd)
 			Gray(formatTime(cmd.time))
 		]))
