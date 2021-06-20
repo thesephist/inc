@@ -48,6 +48,7 @@ Action := {
 	Find: 3
 	Print: 4
 	History: 5
+	Pipeline: 6
 }
 
 now := () => floor(time())
@@ -90,7 +91,8 @@ parseCommand := line => (
 			words := filter(split(line, ' '), word => len(word) > 0)
 			` TODO: support choice lists and choice ranges
 				- cmd 1 2 3 is like cmd 1, cmd 2, cmd 3
-				- cmd 1-3 also does the same `
+				- cmd 1-3 also does the same
+				- cmd query operates on all notes matching the query `
 			[words.0, numeric?(words.1)] :: {
 				` shorthand, because muscle memory `
 				['ls', _] -> {
@@ -213,7 +215,7 @@ newDB := (initialDB, saveFilePath) => (
 		sortBy(matchedNotes, note => ~(note.updated))
 
 		S.choices := matchedNotes
-		noteLines := map(matchedNotes, (note, i) => f('{{ 0 }} | {{ 1 }} {{ 2 }}', [
+		noteLines := map(matchedNotes, (note, i) => f('  {{ 0 }} | {{ 1 }} {{ 2 }}', [
 			Yellow(string(i))
 			note.content
 			Gray(formatTime(note.updated))
@@ -233,7 +235,7 @@ newDB := (initialDB, saveFilePath) => (
 	})
 
 	getHistoryAction := cb => (
-		historyLines := map(S.db.events, (cmd, i) => f('{{ 0 }} | {{ 1 }} {{ 2 }}', [
+		historyLines := map(S.db.events, (cmd, i) => f('  {{ 0 }} | {{ 1 }} {{ 2 }}', [
 			Yellow(string(i))
 			formatCommand(cmd)
 			Gray(formatTime(cmd.time))
@@ -299,7 +301,13 @@ HomePath := env().HOME :: {
 	() -> error('could not find home directory')
 	'' -> error('could not find home directory')
 	_ -> (
-		saveFilePath := HomePath + '/' + SaveFileName
+		` For development tasks, we use an Inc database local to this
+		repository to keep track of tasks and ideas. This lets anyone override
+		the location where Inc keeps its data stored. `
+		saveFilePath := (env().'INC_DB_PATH' :: {
+			() -> HomePath + '/' + SaveFileName
+			_ -> env().'INC_DB_PATH' + '/' + SaveFileName
+		})
 		startWithInitialDB := initialDB => (
 			inc := newDB(initialDB, saveFilePath)
 			len(Args) :: {
