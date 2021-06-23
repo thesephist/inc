@@ -8,14 +8,17 @@ ansi := load('../vendor/ansi')
 
 log := std.log
 f := std.format
+range := std.range
 scan := std.scan
 slice := std.slice
 cat := std.cat
 map := std.map
 map := std.map
 each := std.each
-every := std.every
+reduce := std.reduce
 filter := std.filter
+every := std.every
+append := std.append
 readFile := std.readFile
 writeFile := std.writeFile
 
@@ -40,6 +43,7 @@ Yellow := ansi.Yellow
 Tab := char(9)
 Newline := char(10)
 Editor := 'vim'
+MaxLine := 60
 DefaultMaxResults := 25
 MaxHistory := 100
 SaveFileName := 'inc.db.json'
@@ -70,10 +74,10 @@ formatTime := time => (
 	diff := now() - time
 	true :: {
 		diff < 60 -> 'now'
-		diff < 3600 -> f('{{ 0 }}m ago', [floor(diff / 60)])
-		diff < 86400 -> f('{{ 0 }}h ago', [floor(diff / 3600)])
-		diff < 86400 * 7 -> f('{{ 0 }}d ago', [floor(diff / 86400)])
-		_ -> f('{{ 0 }}w ago', [floor(diff / 86400 / 7)])
+		diff < 3600 -> f('{{ 0 }}m', [floor(diff / 60)])
+		diff < 86400 -> f('{{ 0 }}h', [floor(diff / 3600)])
+		diff < 86400 * 7 -> f('{{ 0 }}d', [floor(diff / 86400)])
+		_ -> f('{{ 0 }}w', [floor(diff / 86400 / 7)])
 	}
 )
 
@@ -194,6 +198,44 @@ formatCommand := cmd => cmd.type :: {
 	)
 }
 
+formatEntries := entries => (
+	maxDigitPlaces := len(string(len(entries))) + 2
+	prefixPadding := cat(map(range(0, maxDigitPlaces, 1), n => ' '), '')
+
+	entries :: {
+		[] -> Gray('(no results)')
+		_ -> (
+			blocks := map(entries, (ent, i) => (
+				lines := reduce(split(ent, ' '), (lines, word) => (
+					lastIdx := len(lines) - 1
+					lastLine := lines.(lastIdx) :: {
+						() -> lines.len(lines) := word
+						_ -> len(lastLine) + len(word) < MaxLine :: {
+							` should not `
+							true -> lines.(lastIdx) := lastLine + ' ' + word
+							` should wrap, potentially breaking word `
+							_ -> (
+								wordLines := map(range(0, len(word), MaxLine), idx => (
+									slice(word, idx, idx + MaxLine)
+								))
+								append(lines, wordLines)
+							)
+						}
+					}
+				), [])
+				cat(map(lines, (line, lineIdx) => f('{{ 0 }} {{ 1 }}', [
+					lineIdx :: {
+						0 -> slice(prefixPadding, 0, maxDigitPlaces - len(string(i))) + Yellow(string(i))
+						_ -> prefixPadding
+					}
+					trimWS(line)
+				])), Newline)
+			))
+			cat(blocks, Newline)
+		)
+	}
+)
+
 ` note database `
 newDB := (initialDB, saveFilePath) => (
 	` state `
@@ -264,15 +306,16 @@ newDB := (initialDB, saveFilePath) => (
 		matchedNotes := slice(matchedNotes, 0, DefaultMaxResults)
 
 		S.choices := matchedNotes
-		noteLines := map(matchedNotes, (note, i) => f('  {{ 0 }} | {{ 1 }} {{ 2 }}', [
-			Yellow(string(i))
+
+		` formatting `
+		maxDigitPlaces := len(string(len(matchedNotes)))
+		prefixPadding := cat(map(range(0, maxDigitPlaces, 1), n => ' '), '')
+
+		noteEntries := map(matchedNotes, note => f('{{ 0 }} {{ 1 }}', [
 			note.content
 			Gray(formatTime(note.updated))
 		]))
-		noteLines :: {
-			[] -> cb(Gray('(no results)'))
-			_ -> cb(cat(noteLines, Newline))
-		}
+		cb(formatEntries(noteEntries))
 	)
 
 	deleteAction := (query, cb) => (
@@ -283,12 +326,15 @@ newDB := (initialDB, saveFilePath) => (
 	)
 
 	historyAction := cb => (
-		historyLines := map(S.db.events, (cmd, i) => f('  {{ 0 }} | {{ 1 }} {{ 2 }}', [
-			Yellow(string(i))
+		` formatting `
+		maxDigitPlaces := len(string(len(S.db.events)))
+		prefixPadding := cat(map(range(0, maxDigitPlaces, 1), n => ' '), '')
+
+		historyEntries := map(S.db.events, cmd => f('{{ 0 }} {{ 1 }}', [
 			formatCommand(cmd)
 			Gray(formatTime(cmd.time))
 		]))
-		cb(cat(historyLines, Newline))
+		cb(formatEntries(historyEntries))
 	)
 
 	metaAction := cb => cb(cat([
