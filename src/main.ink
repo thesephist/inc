@@ -293,6 +293,8 @@ newDB := (initialDB, saveFilePath) => (
 		len(S.db.events) > MaxHistory :: {
 			true -> S.db.events := slice(S.db.events, len(S.db.events) - MaxHistory, MaxHistory)
 		}
+		` need to persist modifications to history `
+		persistAction(() => ())
 
 		cmd.type :: {
 			Action.Create -> addAction(cmd.content, cb)
