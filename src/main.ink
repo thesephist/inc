@@ -12,14 +12,18 @@ scan := std.scan
 slice := std.slice
 cat := std.cat
 map := std.map
+map := std.map
+each := std.each
 every := std.every
 filter := std.filter
 readFile := std.readFile
 writeFile := std.writeFile
 
 digit? := str.digit?
+lower := str.lower
 index := str.index
 split := str.split
+replace := str.replace
 contains? := str.contains?
 hasPrefix? := str.hasPrefix?
 hasSuffix? := str.hasSuffix?
@@ -41,7 +45,6 @@ MaxHistory := 100
 SaveFileName := 'inc.db.json'
 
 Action := {
-	Invalid: ~1
 	Create: 0
 	Edit: 1
 	Delete: 2
@@ -74,6 +77,39 @@ formatTime := time => (
 	}
 )
 
+Query := {
+	List: 0
+	Range: 1
+	Find: 2
+}
+
+` Choice argument lists can take the forms
+- cmd 1 2 3
+- cmd 1-3 OR cmd 1 - 3
+- cmd query `
+parseQuery := text => (
+	dashSpread := replace(text, '-', ' - ')
+	parts := map(split(dashSpread, ' '), s => trim(s, ' '))
+
+	numeric?(parts.0) & numeric?(parts.2) & parts = [_, '-', _] :: {
+		true -> {
+			type: Query.Range
+			min: number(parts.0)
+			max: number(parts.2)
+		}
+		_ -> every(map(parts, numeric?)) :: {
+			true -> {
+				type: Query.List
+				values: map(parts, number)
+			}
+			_ -> {
+				type: Query.Find
+				keyword: trimWS(text)
+			}
+		}
+	}
+)
+
 parseCommand := line => (
 	line := trimWS(line)
 	line.0 :: {
@@ -85,41 +121,34 @@ parseCommand := line => (
 		'/' -> {
 			time: now()
 			type: Action.Find
-			query: slice(line, 1, len(line))
+			keyword: slice(line, 1, len(line))
 		}
 		_ -> (
 			words := filter(split(line, ' '), word => len(word) > 0)
-			` TODO: support choice lists and choice ranges
-				- cmd 1 2 3 is like cmd 1, cmd 2, cmd 3
-				- cmd 1-3 also does the same
-				- cmd query operates on all notes matching the query `
-			[words.0, numeric?(words.1)] :: {
+			words.0 :: {
 				` shorthand, because muscle memory `
-				['ls', _] -> {
+				'ls' -> {
 					time: now()
 					type: Action.Find
-					query: ''
+					keyword: ''
 				}
-				['rm', true] -> {
+				'rm' -> {
 					time: now()
 					type: Action.Delete
-					choice: words.1
+					query: parseQuery(cat(slice(words, 1, len(words)), ' '))
 				}
-				['show', true] -> {
+				'show' -> {
 					time: now()
 					type: Action.Print
-					choice: words.1
+					query: parseQuery(cat(slice(words, 1, len(words)), ' '))
 				}
-				['add', true] -> {
+				'add' -> {
 					time: now()
 					type: Action.Edit
-					choice: words.1
+					query: parseQuery(words.1)
 					content: cat(slice(words, 2, len(words)), ' ')
 				}
-				['rm', _] -> {type: Action.Invalid}
-				['show', _] -> {type: Action.Invalid}
-				['add', _] -> {type: Action.Invalid}
-				['history', _] -> {
+				'history' -> {
 					time: now()
 					type: Action.History
 				}
@@ -134,16 +163,26 @@ parseCommand := line => (
 	}
 )
 
+formatQuery := query => query.type :: {
+	Query.List -> cat(map(query.values, string), ' ')
+	Query.Range -> f('{{ min }} - {{ max }}', query)
+	Query.Find -> f('{{ keyword }}', query)
+	_ -> (
+		error(f('unrecognized query type {{ 0 }}', [query]))
+		''
+	)
+}
+
 formatCommand := cmd => cmd.type :: {
 	Action.Create -> f('+ "{{ 0 }}"', [cmd.content])
-	Action.Edit -> f('add {{ 0 }} "{{ 1 }}"', [cmd.choice, cmd.content])
-	Action.Delete -> f('rm {{ 0 }}', [cmd.choice])
-	Action.Find -> f('/{{ 0 }}', [cmd.query])
-	Action.Print -> f('show {{ 0 }}', [cmd.choice])
+	Action.Edit -> f('add {{ 0 }} "{{ 1 }}"', [formatQuery(cmd.query), cmd.content])
+	Action.Delete -> f('rm {{ 0 }}', [formatQuery(cmd.query)])
+	Action.Find -> f('/{{ 0 }}', [cmd.keyword])
+	Action.Print -> f('show {{ 0 }}', [formatQuery(cmd.query)])
 	Action.History -> 'history'
 	_ -> (
-		error('unrecognized command type')
-		cb(())
+		error(f('unrecognized command type {{ 0 }}', [cmd]))
+		''
 	)
 }
 
@@ -153,32 +192,36 @@ newDB := (initialDB, saveFilePath) => (
 
 	S := {
 		db: initialDB
-		choices: []
+		choices: initialDB.notes
 	}
 
-	withChoiceNote := (choice, cb) => numeric?(choice) :: {
-		false -> (
-			error(f('{{ 0 }} is not a valid choice', [choice]))
-			cb(())
-		)
-		_ -> chosen := S.choices.number(choice) :: {
-			() -> (
-				error(f('could not find choice {{ 0 }}', [choice]))
-				cb(())
-			)
-			_ -> cb(chosen)
+	searchNotes := keyword => filter(
+		S.db.notes
+		note => contains?(lower(note.content), lower(keyword))
+	)
+
+	getQueriedNotes := query => query.type :: {
+		Query.List -> map(query.values, i => S.choices.(i))
+		Query.Range -> slice(S.choices, query.min, query.max + 1)
+		Query.Find -> query.keyword :: {
+			'' -> []
+			_ -> searchNotes(query.keyword)
 		}
+		_ -> error(f('unrecognized query {{ 0 }}', [query]))
 	}
 
 	` actions `
 
-	persistAction := cb => writeFile(saveFilePath, serJSON(S.db), res => res :: {
-		true -> cb(())
-		_ -> (
-			error('failed to save')
-			cb(())
-		)
-	})
+	persistAction := cb => (
+		sortBy(S.db.notes, note => ~(note.updated))
+		writeFile(saveFilePath, serJSON(S.db), res => res :: {
+			true -> cb(())
+			_ -> (
+				error('failed to save')
+				cb(())
+			)
+		})
+	)
 
 	addAction := (content, cb) => trimWS(content) :: {
 		'' -> cb(())
@@ -192,27 +235,25 @@ newDB := (initialDB, saveFilePath) => (
 		)
 	}
 
-	editAction := (choice, content, cb) => withChoiceNote(choice, note => note :: {
-		() -> cb(())
-		_ -> (
+	editAction := (query, content, cb) => (
+		each(getQueriedNotes(query), note => (
 			note.updated := now()
 			note.content := trim(note.content, ' ') + ' ' + content
-			persistAction(cb)
-		)
-	})
+		))
+		persistAction(cb)
+	)
 
-	printAction := (choice, cb) => withChoiceNote(choice, note => note :: {
-		() -> cb(())
-		_ -> cb(note.content)
-	})
+	printAction := (query, cb) => cb(cat(map(
+		getQueriedNotes(query)
+		note => note.content
+	), Newline))
 
-	findAction := (query, cb) => (
-		matchedNotes := (trimWS(query) :: {
+	findAction := (keyword, cb) => (
+		matchedNotes := (trimWS(keyword) :: {
 			'' -> S.db.notes
-			_ -> filter(S.db.notes, note => contains?(note.content, query))
+			_ -> searchNotes(keyword)
 		})
 		matchedNotes := slice(matchedNotes, 0, DefaultMaxResults)
-		sortBy(matchedNotes, note => ~(note.updated))
 
 		S.choices := matchedNotes
 		noteLines := map(matchedNotes, (note, i) => f('  {{ 0 }} | {{ 1 }} {{ 2 }}', [
@@ -226,15 +267,14 @@ newDB := (initialDB, saveFilePath) => (
 		}
 	)
 
-	deleteAction := (choice, cb) => withChoiceNote(choice, chosen => chosen :: {
-		() -> cb(())
-		_ -> (
-			S.db.notes := filter(S.db.notes, note => ~(note = chosen))
-			persistAction(cb)
-		)
-	})
+	deleteAction := (query, cb) => (
+		each(getQueriedNotes(query), note => (
+			S.db.notes := filter(S.db.notes, n => ~(n = note))
+		))
+		persistAction(cb)
+	)
 
-	getHistoryAction := cb => (
+	historyAction := cb => (
 		historyLines := map(S.db.events, (cmd, i) => f('  {{ 0 }} | {{ 1 }} {{ 2 }}', [
 			Yellow(string(i))
 			formatCommand(cmd)
@@ -256,13 +296,13 @@ newDB := (initialDB, saveFilePath) => (
 
 		cmd.type :: {
 			Action.Create -> addAction(cmd.content, cb)
-			Action.Edit -> editAction(cmd.choice, cmd.content, cb)
-			Action.Delete -> deleteAction(cmd.choice, cb)
-			Action.Find -> findAction(cmd.query, cb)
-			Action.Print -> printAction(cmd.choice, cb)
-			Action.History -> getHistoryAction(cb)
+			Action.Edit -> editAction(cmd.query, cmd.content, cb)
+			Action.Delete -> deleteAction(cmd.query, cb)
+			Action.Find -> findAction(cmd.keyword, cb)
+			Action.Print -> printAction(cmd.query, cb)
+			Action.History -> historyAction(cb)
 			_ -> (
-				error('unrecognized command type')
+				error(f('unrecognized command type "{{ 0 }}"', [cmd]))
 				cb(())
 			)
 		}
