@@ -293,10 +293,12 @@ newDB := (initialDB, saveFilePath) => (
 		persistAction(cb)
 	)
 
-	printAction := (query, cb) => cb(cat(map(
-		getQueriedNotes(query)
-		note => note.content
-	), Newline))
+	deleteAction := (query, cb) => (
+		each(getQueriedNotes(query), note => (
+			S.db.notes := filter(S.db.notes, n => ~(n = note))
+		))
+		persistAction(cb)
+	)
 
 	findAction := (keyword, cb) => (
 		matchedNotes := (trimWS(keyword) :: {
@@ -318,12 +320,10 @@ newDB := (initialDB, saveFilePath) => (
 		cb(formatEntries(noteEntries))
 	)
 
-	deleteAction := (query, cb) => (
-		each(getQueriedNotes(query), note => (
-			S.db.notes := filter(S.db.notes, n => ~(n = note))
-		))
-		persistAction(cb)
-	)
+	printAction := (query, cb) => cb(cat(map(
+		getQueriedNotes(query)
+		note => note.content
+	), Newline))
 
 	historyAction := cb => (
 		` formatting `
