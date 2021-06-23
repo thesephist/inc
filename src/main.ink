@@ -177,7 +177,10 @@ formatCommand := cmd => cmd.type :: {
 	Action.Create -> f('+ "{{ 0 }}"', [cmd.content])
 	Action.Edit -> f('add {{ 0 }} "{{ 1 }}"', [formatQuery(cmd.query), cmd.content])
 	Action.Delete -> f('rm {{ 0 }}', [formatQuery(cmd.query)])
-	Action.Find -> f('/{{ 0 }}', [cmd.keyword])
+	Action.Find -> cmd.keyword :: {
+		'' -> 'ls'
+		_ -> f('/{{ 0 }}', [cmd.keyword])
+	}
 	Action.Print -> f('show {{ 0 }}', [formatQuery(cmd.query)])
 	Action.History -> 'history'
 	_ -> (
