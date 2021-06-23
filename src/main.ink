@@ -45,13 +45,13 @@ MaxHistory := 100
 SaveFileName := 'inc.db.json'
 
 Action := {
+	Meta: ~1
 	Create: 0
 	Edit: 1
 	Delete: 2
 	Find: 3
 	Print: 4
 	History: 5
-	Pipeline: 6
 }
 
 now := () => floor(time())
@@ -152,6 +152,10 @@ parseCommand := line => (
 					time: now()
 					type: Action.History
 				}
+				'meta' -> {
+					time: now()
+					type: Action.Meta
+				}
 				_ -> {
 					` default action is to just type into the readline to add notes `
 					time: now()
@@ -183,6 +187,7 @@ formatCommand := cmd => cmd.type :: {
 	}
 	Action.Print -> f('show {{ 0 }}', [formatQuery(cmd.query)])
 	Action.History -> 'history'
+	Action.Meta -> 'meta'
 	_ -> (
 		error(f('unrecognized command type {{ 0 }}', [cmd]))
 		''
@@ -286,6 +291,14 @@ newDB := (initialDB, saveFilePath) => (
 		cb(cat(historyLines, Newline))
 	)
 
+	metaAction := cb => cb(cat([
+		f('DB path: {{ 0 }}', [saveFilePath])
+		f('Stats: {{ notes }} notes, {{ events }} events', {
+			notes: len(S.db.notes)
+			events: len(S.db.events)
+		})
+	], Newline))
+
 	` main event loop `
 
 	processInput := (line, cb) => (
@@ -306,6 +319,7 @@ newDB := (initialDB, saveFilePath) => (
 			Action.Find -> findAction(cmd.keyword, cb)
 			Action.Print -> printAction(cmd.query, cb)
 			Action.History -> historyAction(cb)
+			Action.Meta -> metaAction(cb)
 			_ -> (
 				error(f('unrecognized command type "{{ 0 }}"', [cmd]))
 				cb(())
