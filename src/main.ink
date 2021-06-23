@@ -127,6 +127,15 @@ parseCommand := line => (
 			type: Action.Find
 			keyword: slice(line, 1, len(line))
 		}
+		` typing a hashtag by itself performs a search for that hashtag. For
+		example, #todo is equivalent to /#todo. This means the user cannot add
+		notes beginning with hashtags, but that seems like a fine limitation
+		because they can work around with the + command. `
+		'#' -> {
+			time: now()
+			type: Action.Find
+			keyword: line
+		}
 		_ -> (
 			words := filter(split(line, ' '), word => len(word) > 0)
 			words.0 :: {
