@@ -6,13 +6,16 @@ quicksort := load('../vendor/quicksort')
 json := load('../vendor/json')
 ansi := load('../vendor/ansi')
 
+util := load('util')
+markup := load('markup')
+command := load('command')
+
 log := std.log
 f := std.format
 range := std.range
 scan := std.scan
 slice := std.slice
 cat := std.cat
-map := std.map
 map := std.map
 each := std.each
 reduce := std.reduce
@@ -22,7 +25,6 @@ append := std.append
 readFile := std.readFile
 writeFile := std.writeFile
 
-digit? := str.digit?
 lower := str.lower
 index := str.index
 split := str.split
@@ -37,466 +39,32 @@ sortBy := quicksort.sortBy
 serJSON := json.ser
 deJSON := json.de
 
-ansiStyle := ansi.style
 Gray := ansi.Gray
-Bold := ansi.BoldWhite
-Blue := ansi.Blue
-Black := ansi.Black
 Yellow := ansi.Yellow
-BackgroundRed := ansiStyle(ansi.Weight.Regular, ansi.Background.Red)
+
+now := util.now
+error := util.error
+trimWS := util.trimWS
+truncate := util.truncate
+formatTime := util.formatTime
+
+Query := command.Query
+Action := command.Action
+parseQuery := command.parseQuery
+formatQuery := command.formatQuery
+parseCommand := command.parseCommand
+formatCommand := command.formatCommand
+
+markupText := markup.markupText
+markupLen := markup.markupLen
 
 Tab := char(9)
 Newline := char(10)
-Editor := 'vim'
 MaxLine := 60
-MaxTrim := 280 ` Tweet sized `
 DefaultMaxResults := 25
-MaxHistory := 100
 SaveFileName := 'inc.db.json'
 
-now := () => floor(time())
-
-error := s => log('[error] ' + s)
-
-` checks if a string contains only numeric characters, and thus can safely be
-converted to a number using number() `
-numeric? := s => s :: {
-	() -> false
-	_ -> every(map(s, digit?))
-}
-
-` trims whitespace, namely spaces and tabs `
-trimWS := s => trim(trim(s, ' '), Tab)
-
-` relative time format `
-formatTime := time => (
-	diff := now() - time
-	true :: {
-		diff < 60 -> 'now'
-		diff < 3600 -> f('{{ 0 }}m', [floor(diff / 60)])
-		diff < 86400 -> f('{{ 0 }}h', [floor(diff / 3600)])
-		diff < 86400 * 7 -> f('{{ 0 }}d', [floor(diff / 86400)])
-		_ -> f('{{ 0 }}w', [floor(diff / 86400 / 7)])
-	}
-)
-
-` Two kinds of syntax are marked up:
-	- #hashtags are marked as blue
-	- [bold] things are bolded
-	- substrings that match the search query are red
-They cannot overlap. `
-markup := (s, match) => (
-	markupRest := (sofar, i) => i :: {
-		len(s) -> sofar
-		_ -> c := s.(i) :: {
-			'#' -> (
-				endOfHashtagIdx := (sub := j => s.(j) :: {
-					() -> j
-					' ' -> j
-					_ -> sub(j + 1)
-				})(i + 1)
-				markupRest(
-					sofar.len(sofar) := Blue(slice(s, i, endOfHashtagIdx))
-					endOfHashtagIdx
-				)
-			)
-			'[' -> (
-				endOfBoldIdx := (sub := j => s.(j) :: {
-					() -> j
-					']' -> j + 1
-					_ -> sub(j + 1)
-				})(i + 1)
-				markupRest(
-					sofar.len(sofar) := Bold(slice(s, i, endOfBoldIdx))
-					endOfBoldIdx
-				)
-			)
-			_ -> markupRest(
-				sofar.len(sofar) := c
-				i + 1
-			)
-		}
-	}
-	result := markupRest('', 0)
-	match :: {
-		'' -> result
-		_ -> replace(result, match, BackgroundRed(match))
-	}
-)
-
-markupLen := s => (sub := (i, count) => i :: {
-	len(s) -> count
-	_ -> s.(i) :: {
-		ansi.Esc -> (
-			endOfEscSeq := (ssub := j => s.(j) :: {
-				() -> j
-				'm' -> j + 1
-				_ -> ssub(j + 1)
-			})(i)
-			sub(endOfEscSeq, count)
-		)
-		_ -> sub(i + 1, count + 1)
-	}
-})(0, 0)
-
-truncate := s => len(s) > MaxTrim :: {
-	true -> slice(s, 0, MaxTrim) + '...'
-	_ -> s
-}
-
-Query := {
-	List: 0
-	Range: 1
-	Find: 2
-}
-
-` Choice argument lists can take the forms
-- cmd 1 2 3
-- cmd 1-3 OR cmd 1 - 3
-- cmd query `
-parseQuery := text => (
-	dashSpread := replace(text, '-', ' - ')
-	parts := map(split(dashSpread, ' '), s => trim(s, ' '))
-
-	numeric?(parts.0) & numeric?(parts.2) & parts = [_, '-', _] :: {
-		true -> {
-			type: Query.Range
-			min: number(parts.0)
-			max: number(parts.2)
-		}
-		_ -> every(map(parts, numeric?)) :: {
-			true -> {
-				type: Query.List
-				values: map(parts, number)
-			}
-			_ -> {
-				type: Query.Find
-				keyword: trimWS(text)
-			}
-		}
-	}
-)
-
-Action := {
-	Meta: ~1
-	Create: 0
-	Edit: 1
-	Delete: 2
-	Find: 3
-	Print: 4
-	History: 5
-}
-
-parseCommand := line => (
-	line := trimWS(line)
-	line.0 :: {
-		'+' -> {
-			time: now()
-			type: Action.Create
-			content: trimWS(slice(line, 1, len(line)))
-		}
-		'/' -> {
-			time: now()
-			type: Action.Find
-			keyword: slice(line, 1, len(line))
-		}
-		'@' -> {
-			time: now()
-			type: Action.Edit
-			query: (
-				firstWord := split(line, ' ').0
-				restOfFirstWord := slice(firstWord, 1, len(firstWord))
-				parseQuery(restOfFirstWord)
-			)
-			content: (
-				words := split(line, ' ')
-				cat(slice(words, 1, len(words)), ' ')
-			)
-		}
-		` typing a hashtag by itself performs a search for that hashtag. For
-		example, #todo is equivalent to /#todo. This means the user cannot add
-		notes beginning with hashtags, but that seems like a fine limitation
-		because they can work around with the + command. `
-		'#' -> {
-			time: now()
-			type: Action.Find
-			keyword: line
-		}
-		_ -> (
-			words := filter(split(line, ' '), word => len(word) > 0)
-			words.0 :: {
-				` shorthand, because muscle memory `
-				'ls' -> {
-					time: now()
-					type: Action.Find
-					keyword: ''
-				}
-				'rm' -> {
-					time: now()
-					type: Action.Delete
-					query: parseQuery(cat(slice(words, 1, len(words)), ' '))
-				}
-				'show' -> {
-					time: now()
-					type: Action.Print
-					query: parseQuery(cat(slice(words, 1, len(words)), ' '))
-				}
-				'history' -> {
-					time: now()
-					type: Action.History
-				}
-				'meta' -> {
-					time: now()
-					type: Action.Meta
-				}
-				_ -> {
-					` default action is to just type into the readline to add notes `
-					time: now()
-					type: Action.Create
-					content: trimWS(line)
-				}
-			}
-		)
-	}
-)
-
-formatQuery := query => query.type :: {
-	Query.List -> cat(map(query.values, string), ' ')
-	Query.Range -> f('{{ min }}-{{ max }}', query)
-	Query.Find -> f('{{ keyword }}', query)
-	_ -> (
-		error(f('unrecognized query type {{ 0 }}', [query]))
-		''
-	)
-}
-
-formatCommand := cmd => cmd.type :: {
-	Action.Create -> f('+ {{ 0 }}', [cmd.content])
-	Action.Edit -> f('@{{ 0 }} {{ 1 }}', [formatQuery(cmd.query), cmd.content])
-	Action.Delete -> f('rm {{ 0 }}', [formatQuery(cmd.query)])
-	Action.Find -> cmd.keyword :: {
-		'' -> 'ls'
-		_ -> f('/{{ 0 }}', [cmd.keyword])
-	}
-	Action.Print -> f('show {{ 0 }}', [formatQuery(cmd.query)])
-	Action.History -> 'history'
-	Action.Meta -> 'meta'
-	_ -> (
-		error(f('unrecognized command type {{ 0 }}', [cmd]))
-		''
-	)
-}
-
-` formatEntries is used to format wrapped text options output in the inc REPL.
-Often, the CLI shows the user a list of entries from which the user can
-select one or more things. When this happens, numbers and indentation must be
-formatted correctly as well as line wrapping accounted for. This function
-handles these tasks. `
-formatEntries := entries => (
-	maxDigitPlaces := len(string(len(entries))) + 2
-	prefixPadding := cat(map(range(0, maxDigitPlaces, 1), n => ' '), '')
-
-	entries :: {
-		[] -> Gray('(no results)')
-		_ -> (
-			blocks := map(entries, (ent, i) => (
-				ent := replace(ent, Newline, ' ')
-				lines := reduce(split(ent, ' '), (lines, word) => (
-					lastIdx := len(lines) - 1
-					lastLine := lines.(lastIdx) :: {
-						() -> lines.len(lines) := word
-						_ -> markupLen(lastLine) + markupLen(word) < MaxLine :: {
-							` should not `
-							true -> lines.(lastIdx) := lastLine + ' ' + word
-							` should wrap, potentially breaking word `
-							_ -> (
-								wordLines := map(range(0, markupLen(word), MaxLine), idx => (
-									slice(word, idx, idx + MaxLine)
-								))
-								append(lines, wordLines)
-							)
-						}
-					}
-				), [])
-				cat(map(lines, (line, lineIdx) => f('{{ 0 }} {{ 1 }}', [
-					lineIdx :: {
-						0 -> slice(prefixPadding, 0, maxDigitPlaces - len(string(i))) + Yellow(string(i))
-						_ -> prefixPadding
-					}
-					trimWS(line)
-				])), Newline)
-			))
-			cat(blocks, Newline)
-		)
-	}
-)
-
-` note database `
-newDB := (initialDB, saveFilePath) => (
-	` state `
-
-	S := {
-		db: initialDB
-		choices: initialDB.notes
-	}
-
-	searchNotes := keyword => filter(
-		S.db.notes
-		note => contains?(lower(note.content), lower(keyword))
-	)
-
-	getQueriedNotes := query => query.type :: {
-		Query.List -> map(query.values, i => S.choices.(i))
-		Query.Range -> slice(S.choices, query.min, query.max + 1)
-		Query.Find -> query.keyword :: {
-			'' -> []
-			_ -> searchNotes(query.keyword)
-		}
-		_ -> error(f('unrecognized query {{ 0 }}', [query]))
-	}
-
-	` actions `
-
-	persistAction := cb => (
-		sortBy(S.db.notes, note => ~(note.updated))
-		writeFile(saveFilePath, serJSON(S.db), res => res :: {
-			true -> cb(())
-			_ -> (
-				error('failed to save')
-				cb(())
-			)
-		})
-	)
-
-	addAction := (content, cb) => trimWS(content) :: {
-		'' -> cb(())
-		_ -> (
-			S.db.notes.len(S.db.notes) := {
-				created: now()
-				updated: now()
-				content: content
-			}
-			persistAction(cb)
-		)
-	}
-
-	editAction := (query, content, cb) => (
-		each(getQueriedNotes(query), note => (
-			note.updated := now()
-			note.content := trim(note.content, ' ') + Newline + content
-		))
-		persistAction(cb)
-	)
-
-	deleteAction := (query, cb) => (
-		each(getQueriedNotes(query), note => (
-			S.db.notes := filter(S.db.notes, n => ~(n = note))
-		))
-		persistAction(cb)
-	)
-
-	findAction := (keyword, cb) => (
-		keyword := trimWS(keyword)
-		matchedNotes := (keyword :: {
-			'' -> S.db.notes
-			_ -> searchNotes(keyword)
-		})
-		matchedNotes := slice(matchedNotes, 0, DefaultMaxResults)
-
-		S.choices := matchedNotes
-
-		` formatting `
-		maxDigitPlaces := len(string(len(matchedNotes)))
-		prefixPadding := cat(map(range(0, maxDigitPlaces, 1), n => ' '), '')
-
-		noteEntries := map(matchedNotes, note => f('{{ 0 }} {{ 1 }}', [
-			markup(truncate(note.content), keyword)
-			Gray(formatTime(note.updated))
-		]))
-		cb(formatEntries(noteEntries))
-	)
-
-	printAction := (query, cb) => cb(cat(map(
-		getQueriedNotes(query)
-		note => markup(note.content, '')
-	), Newline))
-
-	historyAction := cb => (
-		` formatting `
-		maxDigitPlaces := len(string(len(S.db.events)))
-		prefixPadding := cat(map(range(0, maxDigitPlaces, 1), n => ' '), '')
-
-		historyEntries := map(S.db.events, cmd => f('{{ 0 }} {{ 1 }}', [
-			formatCommand(cmd)
-			Gray(formatTime(cmd.time))
-		]))
-		cb(formatEntries(historyEntries))
-	)
-
-	metaAction := cb => cb(cat([
-		f('DB path: {{ 0 }}', [saveFilePath])
-		f('Stats: {{ notes }} notes, {{ events }} events', {
-			notes: len(S.db.notes)
-			events: len(S.db.events)
-		})
-	], Newline))
-
-	` main event loop `
-
-	processInput := (line, cb) => (
-		cmd := parseCommand(line)
-
-		` add cmd to history if it's new `
-		events := S.db.events
-		formatCommand(events.(len(events) - 1)) :: {
-			formatCommand(cmd) -> ()
-			_ -> events.len(events) := cmd
-		}
-		len(S.db.events) > MaxHistory :: {
-			true -> S.db.events := slice(S.db.events, len(S.db.events) - MaxHistory, MaxHistory)
-		}
-		` need to persist modifications to history `
-		persistAction(() => ())
-
-		cmd.type :: {
-			Action.Create -> addAction(cmd.content, cb)
-			Action.Edit -> editAction(cmd.query, cmd.content, cb)
-			Action.Delete -> deleteAction(cmd.query, cb)
-			Action.Find -> findAction(cmd.keyword, cb)
-			Action.Print -> printAction(cmd.query, cb)
-			Action.History -> historyAction(cb)
-			Action.Meta -> metaAction(cb)
-			_ -> (
-				error(f('unrecognized command type "{{ 0 }}"', [cmd]))
-				cb(())
-			)
-		}
-	)
-
-	performNextLoop := contentSoFar => (
-		out('> ')
-		scan(line => hasSuffix?(line, '\\') :: {
-			true -> performNextLoop(contentSoFar + line + Newline)
-			_ -> (
-				processInput(contentSoFar + line, output => (
-					type(output) :: {
-						'string' -> log(output)
-					}
-					performNextLoop('')
-				))
-			)
-		}
-		)
-	)
-
-	{
-		start: () => performNextLoop('')
-		do: line => processInput(line, output => output :: {
-			() -> ()
-			_ -> log(output)
-		})
-	}
-)
+newDB := load('db').new
 
 ` start main loop `
 
