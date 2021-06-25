@@ -48,25 +48,18 @@ DefaultMaxResults := 25
 MaxHistory := 100
 SaveFileName := 'inc.db.json'
 
-Action := {
-	Meta: ~1
-	Create: 0
-	Edit: 1
-	Delete: 2
-	Find: 3
-	Print: 4
-	History: 5
-}
-
 now := () => floor(time())
 
 error := s => log('[error] ' + s)
 
+` checks if a string contains only numeric characters, and thus can safely be
+converted to a number using number() `
 numeric? := s => s :: {
 	() -> false
 	_ -> every(map(s, digit?))
 }
 
+` trims whitespace, namely spaces and tabs `
 trimWS := s => trim(trim(s, ' '), Tab)
 
 ` relative time format `
@@ -113,6 +106,16 @@ parseQuery := text => (
 		}
 	}
 )
+
+Action := {
+	Meta: ~1
+	Create: 0
+	Edit: 1
+	Delete: 2
+	Find: 3
+	Print: 4
+	History: 5
+}
 
 parseCommand := line => (
 	line := trimWS(line)
@@ -207,6 +210,11 @@ formatCommand := cmd => cmd.type :: {
 	)
 }
 
+` formatEntries is used to format wrapped text options output in the inc REPL.
+Often, the CLI shows the user a list of entries from which the user can
+select one or more things. When this happens, numbers and indentation must be
+formatted correctly as well as line wrapping accounted for. This function
+handles these tasks. `
 formatEntries := entries => (
 	maxDigitPlaces := len(string(len(entries))) + 2
 	prefixPadding := cat(map(range(0, maxDigitPlaces, 1), n => ' '), '')
