@@ -3,44 +3,22 @@ str := load('../vendor/str')
 quicksort := load('../vendor/quicksort')
 json := load('../vendor/json')
 ansi := load('../vendor/ansi')
-
 util := load('util')
 
-log := std.log
 f := std.format
-range := std.range
-scan := std.scan
 slice := std.slice
 cat := std.cat
 map := std.map
-map := std.map
-each := std.each
-reduce := std.reduce
 filter := std.filter
 every := std.every
-append := std.append
-readFile := std.readFile
-writeFile := std.writeFile
 
-lower := str.lower
-index := str.index
 split := str.split
 replace := str.replace
-contains? := str.contains?
-hasPrefix? := str.hasPrefix?
-hasSuffix? := str.hasSuffix?
 trim := str.trim
 
 now := util.now
 numeric? := util.numeric?
 trimWS := util.trimWS
-
-Tab := char(9)
-Newline := char(10)
-MaxLine := 60
-DefaultMaxResults := 25
-MaxHistory := 100
-SaveFileName := 'inc.db.json'
 
 Query := {
 	List: 0

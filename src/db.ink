@@ -5,7 +5,6 @@ str := load('../vendor/str')
 quicksort := load('../vendor/quicksort')
 json := load('../vendor/json')
 ansi := load('../vendor/ansi')
-
 util := load('util')
 markup := load('markup')
 command := load('command')
@@ -20,24 +19,19 @@ map := std.map
 each := std.each
 reduce := std.reduce
 filter := std.filter
-every := std.every
 append := std.append
-readFile := std.readFile
 writeFile := std.writeFile
 
 lower := str.lower
-index := str.index
 split := str.split
 replace := str.replace
 contains? := str.contains?
-hasPrefix? := str.hasPrefix?
 hasSuffix? := str.hasSuffix?
 trim := str.trim
 
 sortBy := quicksort.sortBy
 
 serJSON := json.ser
-deJSON := json.de
 
 Gray := ansi.Gray
 Yellow := ansi.Yellow
@@ -48,15 +42,15 @@ trimWS := util.trimWS
 truncate := util.truncate
 formatTime := util.formatTime
 
+markupText := markup.markupText
+markupLen := markup.markupLen
+
 Query := command.Query
 Action := command.Action
 parseQuery := command.parseQuery
 formatQuery := command.formatQuery
 parseCommand := command.parseCommand
 formatCommand := command.formatCommand
-
-markupText := markup.markupText
-markupLen := markup.markupLen
 
 Tab := char(9)
 Newline := char(10)

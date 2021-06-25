@@ -2,8 +2,6 @@ std := load('../vendor/std')
 str := load('../vendor/str')
 ansi := load('../vendor/ansi')
 
-util := load('util')
-
 slice := std.slice
 
 replace := str.replace
@@ -12,12 +10,6 @@ ansiStyle := ansi.style
 Bold := ansi.BoldWhite
 Blue := ansi.Blue
 BackgroundRed := ansiStyle(ansi.Weight.Regular, ansi.Background.Red)
-
-now := util.now
-error := util.error
-numeric? := util.numeric?
-trimWS := util.trimWS
-formatTime := util.formatTime
 
 ` Two kinds of syntax are marked up:
 	- #hashtags are marked as blue

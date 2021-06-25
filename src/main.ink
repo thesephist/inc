@@ -1,67 +1,17 @@
 #!/usr/bin/env ink
 
 std := load('../vendor/std')
-str := load('../vendor/str')
-quicksort := load('../vendor/quicksort')
 json := load('../vendor/json')
-ansi := load('../vendor/ansi')
-
 util := load('util')
-markup := load('markup')
-command := load('command')
 
-log := std.log
-f := std.format
-range := std.range
-scan := std.scan
 slice := std.slice
 cat := std.cat
-map := std.map
-each := std.each
-reduce := std.reduce
-filter := std.filter
-every := std.every
-append := std.append
 readFile := std.readFile
-writeFile := std.writeFile
 
-lower := str.lower
-index := str.index
-split := str.split
-replace := str.replace
-contains? := str.contains?
-hasPrefix? := str.hasPrefix?
-hasSuffix? := str.hasSuffix?
-trim := str.trim
-
-sortBy := quicksort.sortBy
-
-serJSON := json.ser
 deJSON := json.de
 
-Gray := ansi.Gray
-Yellow := ansi.Yellow
-
-now := util.now
 error := util.error
-trimWS := util.trimWS
-truncate := util.truncate
-formatTime := util.formatTime
 
-Query := command.Query
-Action := command.Action
-parseQuery := command.parseQuery
-formatQuery := command.formatQuery
-parseCommand := command.parseCommand
-formatCommand := command.formatCommand
-
-markupText := markup.markupText
-markupLen := markup.markupLen
-
-Tab := char(9)
-Newline := char(10)
-MaxLine := 60
-DefaultMaxResults := 25
 SaveFileName := 'inc.db.json'
 
 newDB := load('db').new
