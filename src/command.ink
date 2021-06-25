@@ -32,7 +32,7 @@ Query := {
 - cmd query `
 parseQuery := text => (
 	dashSpread := replace(text, '-', ' - ')
-	parts := map(split(dashSpread, ' '), s => trim(s, ' '))
+	parts := filter(map(split(dashSpread, ' '), s => trim(s, ' ')), s => ~(s = ''))
 
 	numeric?(parts.0) & numeric?(parts.2) & parts = [_, '-', _] :: {
 		true -> {
@@ -74,7 +74,7 @@ parseCommand := line => (
 		'/' -> {
 			time: now()
 			type: Action.Find
-			keyword: slice(line, 1, len(line))
+			keyword: trimWS(slice(line, 1, len(line)))
 		}
 		'@' -> {
 			time: now()

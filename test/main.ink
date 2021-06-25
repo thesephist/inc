@@ -1,12 +1,12 @@
-`` runMarkdownTests := load('md').run
-`` runReaderTests := load('reader').run
+runMarkupTests := load('markup').run
+runCommandTests := load('command').run
 
 s := (load('../vendor/suite').suite)(
 	'Inc test suite'
 )
 
-`` runMarkdownTests(s.mark, s.test)
-`` runReaderTests(s.mark, s.test)
+runMarkupTests(s.mark, s.test)
+runCommandTests(s.mark, s.test)
 
 (s.end)()
 
