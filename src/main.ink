@@ -49,6 +49,7 @@ Tab := char(9)
 Newline := char(10)
 Editor := 'vim'
 MaxLine := 60
+MaxTrim := 280 ` Tweet sized `
 DefaultMaxResults := 25
 MaxHistory := 100
 SaveFileName := 'inc.db.json'
@@ -137,6 +138,11 @@ markupLen := s => (sub := (i, count) => i :: {
 		_ -> sub(i + 1, count + 1)
 	}
 })(0, 0)
+
+truncate := s => len(s) > MaxTrim :: {
+	true -> slice(s, 0, MaxTrim) + '...'
+	_ -> s
+}
 
 Query := {
 	List: 0
@@ -287,6 +293,7 @@ formatEntries := entries => (
 		[] -> Gray('(no results)')
 		_ -> (
 			blocks := map(entries, (ent, i) => (
+				ent := replace(ent, Newline, ' ')
 				lines := reduce(split(ent, ' '), (lines, word) => (
 					lastIdx := len(lines) - 1
 					lastLine := lines.(lastIdx) :: {
@@ -369,7 +376,7 @@ newDB := (initialDB, saveFilePath) => (
 	editAction := (query, content, cb) => (
 		each(getQueriedNotes(query), note => (
 			note.updated := now()
-			note.content := trim(note.content, ' ') + ' ' + content
+			note.content := trim(note.content, ' ') + Newline + content
 		))
 		persistAction(cb)
 	)
@@ -396,7 +403,7 @@ newDB := (initialDB, saveFilePath) => (
 		prefixPadding := cat(map(range(0, maxDigitPlaces, 1), n => ' '), '')
 
 		noteEntries := map(matchedNotes, note => f('{{ 0 }} {{ 1 }}', [
-			markup(note.content, keyword)
+			markup(truncate(note.content), keyword)
 			Gray(formatTime(note.updated))
 		]))
 		cb(formatEntries(noteEntries))
@@ -404,7 +411,7 @@ newDB := (initialDB, saveFilePath) => (
 
 	printAction := (query, cb) => cb(cat(map(
 		getQueriedNotes(query)
-		note => note.content
+		note => markup(note.content, '')
 	), Newline))
 
 	historyAction := cb => (
