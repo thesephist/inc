@@ -200,6 +200,19 @@ parseCommand := line => (
 			type: Action.Find
 			keyword: slice(line, 1, len(line))
 		}
+		'@' -> {
+			time: now()
+			type: Action.Edit
+			query: (
+				firstWord := split(line, ' ').0
+				restOfFirstWord := slice(firstWord, 1, len(firstWord))
+				parseQuery(restOfFirstWord)
+			)
+			content: (
+				words := split(line, ' ')
+				cat(slice(words, 1, len(words)), ' ')
+			)
+		}
 		` typing a hashtag by itself performs a search for that hashtag. For
 		example, #todo is equivalent to /#todo. This means the user cannot add
 		notes beginning with hashtags, but that seems like a fine limitation
@@ -228,12 +241,6 @@ parseCommand := line => (
 					type: Action.Print
 					query: parseQuery(cat(slice(words, 1, len(words)), ' '))
 				}
-				'add' -> {
-					time: now()
-					type: Action.Edit
-					query: parseQuery(words.1)
-					content: cat(slice(words, 2, len(words)), ' ')
-				}
 				'history' -> {
 					time: now()
 					type: Action.History
@@ -255,7 +262,7 @@ parseCommand := line => (
 
 formatQuery := query => query.type :: {
 	Query.List -> cat(map(query.values, string), ' ')
-	Query.Range -> f('{{ min }} - {{ max }}', query)
+	Query.Range -> f('{{ min }}-{{ max }}', query)
 	Query.Find -> f('{{ keyword }}', query)
 	_ -> (
 		error(f('unrecognized query type {{ 0 }}', [query]))
@@ -264,8 +271,8 @@ formatQuery := query => query.type :: {
 }
 
 formatCommand := cmd => cmd.type :: {
-	Action.Create -> f('+ "{{ 0 }}"', [cmd.content])
-	Action.Edit -> f('add {{ 0 }} "{{ 1 }}"', [formatQuery(cmd.query), cmd.content])
+	Action.Create -> f('+ {{ 0 }}', [cmd.content])
+	Action.Edit -> f('@{{ 0 }} {{ 1 }}', [formatQuery(cmd.query), cmd.content])
 	Action.Delete -> f('rm {{ 0 }}', [formatQuery(cmd.query)])
 	Action.Find -> cmd.keyword :: {
 		'' -> 'ls'
