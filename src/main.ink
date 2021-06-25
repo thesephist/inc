@@ -37,8 +37,13 @@ sortBy := quicksort.sortBy
 serJSON := json.ser
 deJSON := json.de
 
+ansiStyle := ansi.style
 Gray := ansi.Gray
+Bold := ansi.BoldWhite
+Blue := ansi.Blue
+Black := ansi.Black
 Yellow := ansi.Yellow
+BackgroundRed := ansiStyle(ansi.Weight.Regular, ansi.Background.Red)
 
 Tab := char(9)
 Newline := char(10)
@@ -73,6 +78,65 @@ formatTime := time => (
 		_ -> f('{{ 0 }}w', [floor(diff / 86400 / 7)])
 	}
 )
+
+` Two kinds of syntax are marked up:
+	- #hashtags are marked as blue
+	- [bold] things are bolded
+	- substrings that match the search query are red
+They cannot overlap. `
+markup := (s, match) => (
+	markupRest := (sofar, i) => i :: {
+		len(s) -> sofar
+		_ -> c := s.(i) :: {
+			'#' -> (
+				endOfHashtagIdx := (sub := j => s.(j) :: {
+					() -> j
+					' ' -> j
+					_ -> sub(j + 1)
+				})(i + 1)
+				markupRest(
+					sofar.len(sofar) := Blue(slice(s, i, endOfHashtagIdx))
+					endOfHashtagIdx
+				)
+			)
+			'[' -> (
+				endOfBoldIdx := (sub := j => s.(j) :: {
+					() -> j
+					']' -> j + 1
+					_ -> sub(j + 1)
+				})(i + 1)
+				markupRest(
+					sofar.len(sofar) := Bold(slice(s, i, endOfBoldIdx))
+					endOfBoldIdx
+				)
+			)
+			_ -> markupRest(
+				sofar.len(sofar) := c
+				i + 1
+			)
+		}
+	}
+	result := markupRest('', 0)
+	match :: {
+		'' -> result
+		_ -> replace(result, match, BackgroundRed(match))
+	}
+)
+
+markupLen := s => (sub := (i, count) => i :: {
+	len(s) -> count
+	_ -> s.(i) :: {
+		ansi.Esc -> (
+			endOfEscSeq := (ssub := j => s.(j) :: {
+				() -> j
+				'm' -> j + 1
+				_ -> ssub(j + 1)
+			})(i)
+			sub(endOfEscSeq, count)
+		)
+		_ -> sub(i + 1, count + 1)
+	}
+})(0, 0)
 
 Query := {
 	List: 0
@@ -227,12 +291,12 @@ formatEntries := entries => (
 					lastIdx := len(lines) - 1
 					lastLine := lines.(lastIdx) :: {
 						() -> lines.len(lines) := word
-						_ -> len(lastLine) + len(word) < MaxLine :: {
+						_ -> markupLen(lastLine) + markupLen(word) < MaxLine :: {
 							` should not `
 							true -> lines.(lastIdx) := lastLine + ' ' + word
 							` should wrap, potentially breaking word `
 							_ -> (
-								wordLines := map(range(0, len(word), MaxLine), idx => (
+								wordLines := map(range(0, markupLen(word), MaxLine), idx => (
 									slice(word, idx, idx + MaxLine)
 								))
 								append(lines, wordLines)
@@ -318,7 +382,8 @@ newDB := (initialDB, saveFilePath) => (
 	)
 
 	findAction := (keyword, cb) => (
-		matchedNotes := (trimWS(keyword) :: {
+		keyword := trimWS(keyword)
+		matchedNotes := (keyword :: {
 			'' -> S.db.notes
 			_ -> searchNotes(keyword)
 		})
@@ -331,7 +396,7 @@ newDB := (initialDB, saveFilePath) => (
 		prefixPadding := cat(map(range(0, maxDigitPlaces, 1), n => ' '), '')
 
 		noteEntries := map(matchedNotes, note => f('{{ 0 }} {{ 1 }}', [
-			note.content
+			markup(note.content, keyword)
 			Gray(formatTime(note.updated))
 		]))
 		cb(formatEntries(noteEntries))
