@@ -199,7 +199,7 @@ new := (initialDB, saveFilePath) => (
 		prefixPadding := cat(map(range(0, maxDigitPlaces, 1), n => ' '), '')
 
 		historyEntries := map(S.db.events, cmd => f('{{ 0 }} {{ 1 }}', [
-			formatCommand(cmd)
+			markupText(formatCommand(cmd), '')
 			Gray(formatTime(cmd.time))
 		]))
 		cb(formatEntries(historyEntries))
