@@ -220,7 +220,7 @@ new := (initialDB, saveFilePath) => (
 
 		` guard in case there are no history entries at all in the DB `
 		events := S.db.events :: {
-			[] -> ()
+			[] -> events.len(events) := cmd
 			` add cmd to history if it's new `
 			_ -> formatCommand(events.(len(events) - 1)) :: {
 				formatCommand(cmd) -> ()
