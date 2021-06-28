@@ -251,7 +251,11 @@ new := (initialDB, saveFilePath) => (
 	performNextLoop := contentSoFar => (
 		out('> ')
 		scan(line => hasSuffix?(line, '\\') :: {
-			true -> performNextLoop(contentSoFar + line + Newline)
+			true -> (
+				` trim the final \\ before processing input `
+				lineWithoutBackslash := trimWS(slice(line, 0, len(line) - 1))
+				performNextLoop(contentSoFar + lineWithoutBackslash + Newline)
+			)
 			_ -> (
 				processInput(contentSoFar + line, output => (
 					type(output) :: {
