@@ -218,11 +218,14 @@ new := (initialDB, saveFilePath) => (
 	processInput := (line, cb) => (
 		cmd := parseCommand(line)
 
-		` add cmd to history if it's new `
-		events := S.db.events
-		formatCommand(events.(len(events) - 1)) :: {
-			formatCommand(cmd) -> ()
-			_ -> events.len(events) := cmd
+		` guard in case there are no history entries at all in the DB `
+		events := S.db.events :: {
+			[] -> ()
+			` add cmd to history if it's new `
+			_ -> formatCommand(events.(len(events) - 1)) :: {
+				formatCommand(cmd) -> ()
+				_ -> events.len(events) := cmd
+			}
 		}
 		len(S.db.events) > MaxHistory :: {
 			true -> S.db.events := slice(S.db.events, len(S.db.events) - MaxHistory, MaxHistory)
