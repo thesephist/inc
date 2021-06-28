@@ -33,16 +33,12 @@ sortBy := quicksort.sortBy
 
 serJSON := json.ser
 
-Gray := ansi.Gray
-Yellow := ansi.Yellow
-
 now := util.now
 error := util.error
 trimWS := util.trimWS
 truncate := util.truncate
 formatTime := util.formatTime
 
-markupText := markup.markupText
 markupLen := markup.markupLen
 
 Query := command.Query
@@ -63,7 +59,17 @@ Often, the CLI shows the user a list of entries from which the user can
 select one or more things. When this happens, numbers and indentation must be
 formatted correctly as well as line wrapping accounted for. This function
 handles these tasks. `
-formatEntries := entries => (
+formatEntries := (entries, config) => (
+	` color treatment `
+	Gray := (config.color? :: {
+		true -> ansi.Gray
+		_ -> s => s
+	})
+	Yellow := (config.color? :: {
+		true -> ansi.Yellow
+		_ -> s => s
+	})
+
 	maxDigitPlaces := len(string(len(entries))) + 2
 	prefixPadding := cat(map(range(0, maxDigitPlaces, 1), n => ' '), '')
 
@@ -103,12 +109,28 @@ formatEntries := entries => (
 )
 
 ` note database `
-new := (initialDB, saveFilePath) => (
+new := (initialDB, saveFilePath, config) => (
 	` state `
+
 	S := {
 		db: initialDB
 		choices: initialDB.notes
 	}
+
+	` allow for --no-color configuration `
+
+	Gray := (config.color? :: {
+		true -> ansi.Gray
+		_ -> s => s
+	})
+	Yellow := (config.color? :: {
+		true -> ansi.Yellow
+		_ -> s => s
+	})
+	markupText := (config.color? :: {
+		true -> markup.markupText
+		_ -> s => s
+	})
 
 	` helpers `
 
@@ -185,7 +207,7 @@ new := (initialDB, saveFilePath) => (
 			markupText(truncate(note.content), keyword)
 			Gray(formatTime(note.updated))
 		]))
-		cb(formatEntries(noteEntries))
+		cb(formatEntries(noteEntries, config))
 	)
 
 	printAction := (query, cb) => cb(cat(map(
@@ -202,7 +224,7 @@ new := (initialDB, saveFilePath) => (
 			markupText(formatCommand(cmd), '')
 			Gray(formatTime(cmd.time))
 		]))
-		cb(formatEntries(historyEntries))
+		cb(formatEntries(historyEntries, config))
 	)
 
 	metaAction := cb => cb(cat([

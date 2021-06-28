@@ -1,12 +1,15 @@
 #!/usr/bin/env ink
 
 std := load('../vendor/std')
+str := load('../vendor/str')
 json := load('../vendor/json')
 util := load('util')
 
 slice := std.slice
 cat := std.cat
+filter := std.filter
 readFile := std.readFile
+hasPrefix? := str.hasPrefix?
 
 deJSON := json.de
 
@@ -18,7 +21,10 @@ newDB := load('db').new
 
 ` start main loop `
 
-Args := args()
+flag? := s => hasPrefix?(s, '--')
+
+Args := filter(args(), s => ~flag?(s))
+Flags := filter(args(), flag?)
 
 HomePath := env().HOME :: {
 	() -> error('could not find home directory')
@@ -32,7 +38,9 @@ HomePath := env().HOME :: {
 			_ -> env().'INC_DB_PATH' + '/' + SaveFileName
 		})
 		startWithInitialDB := initialDB => (
-			inc := newDB(initialDB, saveFilePath)
+			inc := newDB(initialDB, saveFilePath, {
+				color?: filter(Flags, f => f = '--no-color') = []
+			})
 			len(Args) :: {
 				2 -> (inc.start)()
 				_ -> (
